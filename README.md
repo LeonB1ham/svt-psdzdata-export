@@ -65,7 +65,7 @@ py -3 app.py --lang en
 5. Select blocks: **All** / **None** / checkboxes on an ECU or a single part
 6. **Export selected**
 
-Build a standalone exe: `.\build.ps1` → `dist\SVT-PSdZ-Export.exe`
+Build a standalone exe: `.\build.ps1` → `dist\SVT-PSdZData-Export.exe`
 
 ## Demo
 

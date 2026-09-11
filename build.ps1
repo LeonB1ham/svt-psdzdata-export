@@ -1,5 +1,5 @@
 # Сборка SVT → PSdZData Export в .exe (Windows)
-# Результат: dist\SVT-PSdZ-Export.exe
+# Результат: dist\SVT-PSdZData-Export.exe
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -21,7 +21,7 @@ Write-Host "Building exe..."
     --clean `
     --onefile `
     --windowed `
-    --name "SVT-PSdZ-Export" `
+    --name "SVT-PSdZData-Export" `
     --hidden-import engine `
     --hidden-import i18n `
     --hidden-import version `
@@ -29,7 +29,7 @@ Write-Host "Building exe..."
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host ""
-    Write-Host "Done: $ProjectRoot\dist\SVT-PSdZ-Export.exe" -ForegroundColor Green
+    Write-Host "Done: $ProjectRoot\dist\SVT-PSdZData-Export.exe" -ForegroundColor Green
 } else {
     Write-Error "Build failed"
 }

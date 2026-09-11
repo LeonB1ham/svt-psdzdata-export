@@ -22,7 +22,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='SVT-PSdZ-Export',
+    name='SVT-PSdZData-Export',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
