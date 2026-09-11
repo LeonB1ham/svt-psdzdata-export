@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<svt xmlns="http://bmw.com/2005/psdz.data.svt">
+    <header date="2026-09-11" time="22:00:00" createdBy="svt-psdz-export-demo" svtTypeInfo="demo"/>
+    <standardSVT svtVersion="5">
+        <ecu baseVariant="HKFM2" nameBNTN="HKFM_HKL-CT01-HKFM">
+            <diagnosticAddresses>
+                <diagnosticAddress physicalOffset="13"/>
+            </diagnosticAddresses>
+            <standardSVK SVKVersion="1" progDepChecked="1">
+                <partIdentification>
+                    <processClass>HWEL</processClass>
+                    <id>00005C62</id>
+                    <mainVersion>001</mainVersion>
+                    <subVersion>000</subVersion>
+                    <patchVersion>000</patchVersion>
+                </partIdentification>
+                <partIdentification>
+                    <processClass>BTLD</processClass>
+                    <id>00004692</id>
+                    <mainVersion>011</mainVersion>
+                    <subVersion>000</subVersion>
+                    <patchVersion>000</patchVersion>
+                </partIdentification>
+                <partIdentification>
+                    <processClass>SWFL</processClass>
+                    <id>00004693</id>
+                    <mainVersion>005</mainVersion>
+                    <subVersion>000</subVersion>
+                    <patchVersion>000</patchVersion>
+                </partIdentification>
+                <partIdentification>
+                    <processClass>CAFD</processClass>
+                    <id>0000570F</id>
+                    <mainVersion>008</mainVersion>
+                    <subVersion>000</subVersion>
+                    <patchVersion>020</patchVersion>
+                </partIdentification>
+            </standardSVK>
+        </ecu>
+        <ecu baseVariant="SRR" nameBNTN="SRR-01-HR">
+            <diagnosticAddresses>
+                <diagnosticAddress physicalOffset="8"/>
+            </diagnosticAddresses>
+            <standardSVK SVKVersion="1" progDepChecked="1">
+                <partIdentification>
+                    <processClass>BTLD</processClass>
+                    <id>00007023</id>
+                    <mainVersion>003</mainVersion>
+                    <subVersion>000</subVersion>
+                    <patchVersion>009</patchVersion>
+                </partIdentification>
+                <partIdentification>
+                    <processClass>SWFL</processClass>
+                    <id>00005ED0</id>
+                    <mainVersion>002</mainVersion>
+                    <subVersion>037</subVersion>
+                    <patchVersion>001</patchVersion>
+                </partIdentification>
+                <partIdentification>
+                    <processClass>CAFD</processClass>
+                    <id>00004146</id>
+                    <mainVersion>003</mainVersion>
+                    <subVersion>037</subVersion>
+                    <patchVersion>007</patchVersion>
+                </partIdentification>
+            </standardSVK>
+        </ecu>
+    </standardSVT>
+</svt>

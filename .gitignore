@@ -4,3 +4,4 @@ svt_export.json
 .venv/
 build/
 dist/
+demo/out/
