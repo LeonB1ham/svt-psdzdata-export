@@ -1,97 +1,105 @@
 # SVT → PSdZData Export
 
-Лёгкая Windows-утилита: читает BMW **SVT XML**, ищет соответствующие SWE-файлы в **PSdZData** и копирует выбранные блоки в заданную папку.
+**Version 1.1.0** — Windows tool that reads a BMW **SVT XML**, finds matching SWE files in **PSdZData**, and copies the selected ECUs into a folder.
 
-Подходит, чтобы вытащить мини-набор `psdzdata/swe` под конкретную машину (CAFD/BTLD/SWFL/SWFK), не таская весь датасет.
+Use it to build a small `psdzdata/swe` set for one car (CAFD / BTLD / SWFL / SWFK) instead of shipping the full dataset.
 
-## Скриншоты
+UI languages: **English, Deutsch, Українська, Русский**. First launch follows the Windows UI language. You can change it in the window; the choice is stored in `svt_export.json`.
 
-Стартовый экран с путями:
+## Screenshots
 
-![Старт](demo/screenshots/01-start.png)
+Startup with paths filled in:
 
-Результат поиска по демо-SVT: найденные детали зелёные, отсутствующие красные.
+![Start](demo/screenshots/01-start.png)
 
-![Поиск](demo/screenshots/02-results.png)
+Search result on the demo SVT: found parts in green, missing parts in red.
 
-Выбор конкретных блоков галочками (SRR снят, HKFM2 остаётся):
+![Search](demo/screenshots/02-results.png)
 
-![Выбор блоков](demo/screenshots/03-selection.png)
+Per-block checkboxes (SRR unchecked, HKFM2 kept):
 
-## Что делает
+![Block selection](demo/screenshots/03-selection.png)
+
+## How it works
 
 ```mermaid
 flowchart LR
-    A[SVT XML] --> C[Поиск по processClass + ID + версии]
+    A[SVT XML] --> C[Match processClass + ID + version]
     B[PSdZData / swe] --> C
-    C --> D[Список ECU и деталей]
-    D --> E[Галочки: все / ничего / конкретные блоки]
-    E --> F[Экспорт в папку]
+    C --> D[ECU and part list]
+    D --> E[Checkboxes: all / none / specific blocks]
+    E --> F[Copy to export folder]
 ```
 
-- Разбирает ECU из SVT: адрес, `baseVariant`, `nameBNTN`, все `partIdentification`
-- Индексирует `psdzdata/swe/{btld,swfl,swfk,cafd,...}`
-- Сопоставляет имя файла вида `cafd_00004146.caf.003_037_007`
-- Показывает **найдено / нет / есть другие версии**
-- Экспортирует только отмеченные блоки и типы
-- Пишет `svt_export_manifest.txt`
+- Parses each ECU from the SVT: diagnostic address, `baseVariant`, `nameBNTN`, every `partIdentification`
+- Indexes `psdzdata/swe/{btld,swfl,swfk,cafd,...}`
+- Matches names such as `cafd_00004146.caf.003_037_007`
+- Marks rows as **found**, **missing**, or **other version available**
+- Exports only checked blocks and types
+- Writes `svt_export_manifest.txt`
 
-## Запуск
+## Run
 
-Нужен [Python 3](https://www.python.org/downloads/) (`py -3`).
+Python 3 (`py -3`):
 
 ```bat
 start.bat
 ```
 
-или
+or
 
 ```bat
 py -3 app.py
 ```
 
-1. Укажите папку PSdZData (корень Lite/Full или сам `psdzdata`)
-2. Укажите SVT XML
-3. Укажите папку экспорта
-4. **Найти файлы**
-5. Отметьте блоки: **Все** / **Ничего** / галочки на ECU или отдельной детали
-6. **Экспорт выбранных**
+Force a language:
 
-Готовый exe: `.\build.ps1` → `dist\SVT-PSdZ-Export.exe`
+```bat
+py -3 app.py --lang en
+```
 
-## Демо
+1. Set the PSdZData folder (Lite/Full root or `psdzdata` itself)
+2. Set the SVT XML
+3. Set the export folder
+4. **Find files**
+5. Select blocks: **All** / **None** / checkboxes on an ECU or a single part
+6. **Export selected**
 
-В `demo/` лежит учебный SVT и крошечный fake-PSdZData. Реальных прошивок BMW там нет — только placeholder-файлы, чтобы увидеть найденные и отсутствующие детали.
+Build a standalone exe: `.\build.ps1` → `dist\SVT-PSdZ-Export.exe`
+
+## Demo
+
+`demo/` ships a sample SVT and a tiny fake PSdZData. There are no real BMW binaries — only placeholders so you can see found vs missing rows.
 
 ```bat
 .\demo\run-demo.ps1
 ```
 
-или вручную:
+or
 
 ```bat
 py -3 app.py --svt demo\sample-svt.xml --psdz demo --out demo\out --layout psdzdata
 ```
 
-GUI на демо-данных:
+GUI on demo data:
 
 ```bat
 py -3 app.py --demo
 ```
 
-Что должно получиться на демо:
+Expected demo result:
 
-| ECU | Деталь | Ожидание |
+| ECU | Part | Result |
 |---|---|---|
-| `0D HKFM2` | BTLD `00004692` `011_000_000` | найден (bin + xml) |
-| `0D HKFM2` | SWFL `00004693` `005_000_000` | найден (bin + xml) |
-| `0D HKFM2` | CAFD `0000570F` `008_000_020` | найден |
-| `0D HKFM2` | HWEL `00005C62` | нет файла (так и должно быть) |
-| `08 SRR` | CAFD `00004146` `003_037_007` | найден |
-| `08 SRR` | BTLD / SWFL | нет в этом наборе |
-| `08 SRR` | CAFD `00004146` | рядом лежит другая версия `003_037_004` |
+| `0D HKFM2` | BTLD `00004692` `011_000_000` | found (bin + xml) |
+| `0D HKFM2` | SWFL `00004693` `005_000_000` | found (bin + xml) |
+| `0D HKFM2` | CAFD `0000570F` `008_000_020` | found |
+| `0D HKFM2` | HWEL `00005C62` | no file (expected) |
+| `08 SRR` | CAFD `00004146` `003_037_007` | found |
+| `08 SRR` | BTLD / SWFL | not in this pack |
+| `08 SRR` | CAFD `00004146` | older version `003_037_004` is also present |
 
-Пример структуры после экспорта:
+Example export tree:
 
 ```text
 demo/out/
@@ -104,7 +112,7 @@ demo/out/
   psdzdata/swe/cafd/cafd_00004146.caf.003_037_007
 ```
 
-На полной PSdZData вместо placeholder появятся настоящие `.bin` / `.caf` / `.xml`. В **Lite** часто заполнен только `swe/cafd` — BTLD/SWFL будут красными, это нормально.
+On a full PSdZData the placeholders become real `.bin` / `.caf` / `.xml` files. **Lite** packs often have `swe/cafd` only — BTLD/SWFL stay red. That is normal.
 
 ## CLI
 
@@ -112,18 +120,18 @@ demo/out/
 py -3 app.py --svt "C:\path\svt.xml" --psdz "C:\PSdZData 4.60.11 Lite" --out "D:\export"
 ```
 
-Опция `--layout`:
+`--layout`:
 
-| Значение | Куда копирует |
+| Value | Output |
 |---|---|
-| `psdzdata` (по умолчанию) | `psdzdata/swe/<тип>/файл` — удобно для E-Sys |
-| `swe` | `swe/<тип>/файл` |
-| `ecu` | папка на каждый блок |
-| `flat` | все файлы в корень |
+| `psdzdata` (default) | `psdzdata/swe/<type>/file` — handy for E-Sys |
+| `swe` | `swe/<type>/file` |
+| `ecu` | one folder per ECU |
+| `flat` | every file in the export root |
 
-## Замечания
+## Notes
 
-- HWEL/HWAP по умолчанию не экспортируются: это обычно не SWE-бинарники
-- Один и тот же файл, если он у нескольких ECU, копируется один раз
-- Уже существующий файл того же размера пропускается
-- Пути запоминаются в `svt_export.json` рядом с программой
+- HWEL/HWAP are off by default; they are usually not SWE binaries
+- The same file used by several ECUs is copied once
+- An existing file of the same size is skipped
+- Last paths and language are stored in `svt_export.json` next to the app

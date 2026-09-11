@@ -165,7 +165,7 @@ def parse_svt(path: str | Path) -> SvtDocument:
             )
         )
     if not ecus:
-        raise ValueError("В SVT не найдено ECU с partIdentification.")
+        raise ValueError("no_ecu")
     return SvtDocument(path=file_path, ecus=ecus)
 
 
@@ -219,7 +219,7 @@ def resolve_swe_root(psdz_path: str | Path) -> Path:
     nested = path / "psdzdata"
     if nested.is_dir():
         return resolve_swe_root(nested)
-    raise FileNotFoundError(f"Не найден каталог swe в {path}")
+    raise FileNotFoundError(path)
 
 
 def _looks_like_swe(path: Path) -> bool:

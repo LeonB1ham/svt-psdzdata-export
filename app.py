@@ -19,6 +19,8 @@ from engine import (
     resolve_swe_root,
     summarize,
 )
+from i18n import LANG_NAMES, LANGS, NAME_TO_LANG, normalize_language, system_language, translate
+from version import APP_VERSION
 
 APP_TITLE = "SVT → PSdZData Export"
 CONFIG_PATH = Path(__file__).with_name("svt_export.json")
@@ -26,12 +28,13 @@ DEFAULT_PSDZ = Path(r"C:\PSdZData 4.60.11 Lite")
 DEFAULT_SVT = DEFAULT_PSDZ / "SVT" / "svt for soft targ.xml"
 DEFAULT_OUT = Path.home() / "Desktop" / "SVT_Export"
 
-LAYOUTS = (
-    ("psdzdata", "psdzdata/swe/...  (для E-Sys)"),
-    ("swe", "swe/btld, swe/swfl, ..."),
-    ("ecu", "по ECU"),
-    ("flat", "все файлы в одну папку"),
-)
+LAYOUTS = ("psdzdata", "swe", "ecu", "flat")
+LAYOUT_KEYS = {
+    "psdzdata": "layout_psdzdata",
+    "swe": "layout_swe",
+    "ecu": "layout_ecu",
+    "flat": "layout_flat",
+}
 
 MARK_ON = "☑"
 MARK_OFF = "☐"
@@ -70,51 +73,77 @@ class App(tk.Tk):
         self.remember_paths = True
         self._on_search_done = None
         cfg = load_config()
+        self._lang = normalize_language(cfg.get("language")) if cfg.get("language") in LANGS else system_language()
 
         self.psdz_var = tk.StringVar(value=cfg.get("psdz", str(DEFAULT_PSDZ if DEFAULT_PSDZ.exists() else "")))
         self.svt_var = tk.StringVar(value=cfg.get("svt", str(DEFAULT_SVT if DEFAULT_SVT.exists() else "")))
         self.out_var = tk.StringVar(value=cfg.get("out", str(DEFAULT_OUT)))
         self.layout_var = tk.StringVar(value=cfg.get("layout", "psdzdata"))
-        self.status_var = tk.StringVar(value="Выберите PSdZData и SVT, затем нажмите «Найти».")
+        self.lang_var = tk.StringVar(value=LANG_NAMES[self._lang])
+        self.status_var = tk.StringVar(value="")
+        self.summary_var = tk.StringVar(value="")
 
         self._build()
+        self._apply_language()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
+
+    def tr(self, key: str, **kwargs) -> str:
+        return translate(self._lang, key, **kwargs)
 
     def _build(self) -> None:
         root = ttk.Frame(self, padding=10)
         root.pack(fill="both", expand=True)
 
-        paths = ttk.LabelFrame(root, text="Пути", padding=8)
-        paths.pack(fill="x")
-        self._path_row(paths, 0, "PSdZData", self.psdz_var, self._browse_psdz)
-        self._path_row(paths, 1, "SVT XML", self.svt_var, self._browse_svt)
-        self._path_row(paths, 2, "Экспорт", self.out_var, self._browse_out)
+        self.paths_frame = ttk.LabelFrame(root, text="", padding=8)
+        self.paths_frame.pack(fill="x")
+        self.lbl_psdz, self.btn_browse_psdz = self._path_row(self.paths_frame, 0, self.psdz_var, self._browse_psdz)
+        self.lbl_svt, self.btn_browse_svt = self._path_row(self.paths_frame, 1, self.svt_var, self._browse_svt)
+        self.lbl_out, self.btn_browse_out = self._path_row(self.paths_frame, 2, self.out_var, self._browse_out)
+        lang_box = ttk.Frame(self.paths_frame)
+        lang_box.grid(row=0, column=3, rowspan=3, sticky="ne", padx=(16, 0))
+        self.lbl_lang = ttk.Label(lang_box)
+        self.lbl_lang.pack(anchor="e")
+        self.lang_combo = ttk.Combobox(
+            lang_box,
+            textvariable=self.lang_var,
+            values=list(LANG_NAMES.values()),
+            state="readonly",
+            width=14,
+        )
+        self.lang_combo.pack(anchor="e", pady=(4, 0))
+        self.lang_combo.bind("<<ComboboxSelected>>", self._on_language)
 
         opts = ttk.Frame(root)
         opts.pack(fill="x", pady=(8, 0))
 
-        types = ttk.LabelFrame(opts, text="Экспортировать типы", padding=8)
-        types.pack(side="left", fill="x", expand=True)
-        self.types_frame = types
+        self.types_frame = ttk.LabelFrame(opts, text="", padding=8)
+        self.types_frame.pack(side="left", fill="x", expand=True)
 
-        layout = ttk.LabelFrame(opts, text="Структура экспорта", padding=8)
-        layout.pack(side="left", fill="y", padx=(8, 0))
-        for value, label in LAYOUTS:
-            ttk.Radiobutton(layout, text=label, value=value, variable=self.layout_var).pack(anchor="w")
+        self.layout_frame = ttk.LabelFrame(opts, text="", padding=8)
+        self.layout_frame.pack(side="left", fill="y", padx=(8, 0))
+        self.layout_buttons: dict[str, ttk.Radiobutton] = {}
+        for value in LAYOUTS:
+            button = ttk.Radiobutton(self.layout_frame, text="", value=value, variable=self.layout_var)
+            button.pack(anchor="w")
+            self.layout_buttons[value] = button
 
         actions = ttk.Frame(root)
         actions.pack(fill="x", pady=8)
-        self.search_btn = ttk.Button(actions, text="Найти файлы", command=self.start_search)
+        self.search_btn = ttk.Button(actions, command=self.start_search)
         self.search_btn.pack(side="left")
-        self.export_btn = ttk.Button(actions, text="Экспорт выбранных", command=self.start_export, state="disabled")
+        self.export_btn = ttk.Button(actions, command=self.start_export, state="disabled")
         self.export_btn.pack(side="left", padx=(8, 0))
-        ttk.Button(actions, text="Открыть папку экспорта", command=self._open_out).pack(side="left", padx=(8, 0))
+        self.open_btn = ttk.Button(actions, command=self._open_out)
+        self.open_btn.pack(side="left", padx=(8, 0))
         ttk.Separator(actions, orient="vertical").pack(side="left", fill="y", padx=10, pady=2)
-        ttk.Label(actions, text="Блоки:").pack(side="left")
-        ttk.Button(actions, text="Все", command=lambda: self._set_all_checked(True)).pack(side="left", padx=(6, 0))
-        ttk.Button(actions, text="Ничего", command=lambda: self._set_all_checked(False)).pack(side="left", padx=(4, 0))
-        ttk.Button(actions, text="Только найденные", command=self._select_found).pack(side="left", padx=(4, 0))
-        self.summary_var = tk.StringVar(value="")
+        self.lbl_blocks = ttk.Label(actions)
+        self.lbl_blocks.pack(side="left")
+        self.btn_all = ttk.Button(actions, command=lambda: self._set_all_checked(True))
+        self.btn_all.pack(side="left", padx=(6, 0))
+        self.btn_none = ttk.Button(actions, command=lambda: self._set_all_checked(False))
+        self.btn_none.pack(side="left", padx=(4, 0))
+        self.btn_found = ttk.Button(actions, command=self._select_found)
+        self.btn_found.pack(side="left", padx=(4, 0))
         ttk.Label(actions, textvariable=self.summary_var).pack(side="right")
 
         panes = ttk.Panedwindow(root, orient="vertical")
@@ -123,13 +152,8 @@ class App(tk.Tk):
         tree_wrap = ttk.Frame(panes)
         cols = ("chk", "cls", "ident", "ver", "status", "files")
         self.tree = ttk.Treeview(tree_wrap, columns=cols, show="tree headings", selectmode="extended")
-        self.tree.heading("#0", text="ECU / деталь")
         self.tree.heading("chk", text="✓", command=self._toggle_all_heading)
-        self.tree.heading("cls", text="Класс")
         self.tree.heading("ident", text="ID")
-        self.tree.heading("ver", text="Версия")
-        self.tree.heading("status", text="Статус")
-        self.tree.heading("files", text="Файлы")
         self.tree.column("#0", width=300, stretch=True)
         self.tree.column("chk", width=36, anchor="center", stretch=False)
         self.tree.column("cls", width=70, anchor="center")
@@ -174,11 +198,59 @@ class App(tk.Tk):
         self.out_var.set(str(demo / "out"))
         return demo
 
-    def _path_row(self, parent, row: int, label: str, variable: tk.StringVar, command) -> None:
-        ttk.Label(parent, text=label, width=10).grid(row=row, column=0, sticky="w", pady=2)
+    def _path_row(self, parent, row: int, variable: tk.StringVar, command):
+        label = ttk.Label(parent, width=12)
+        label.grid(row=row, column=0, sticky="w", pady=2)
         ttk.Entry(parent, textvariable=variable).grid(row=row, column=1, sticky="ew", padx=6, pady=2)
-        ttk.Button(parent, text="Обзор…", command=command).grid(row=row, column=2, pady=2)
+        button = ttk.Button(parent, command=command)
+        button.grid(row=row, column=2, pady=2)
         parent.columnconfigure(1, weight=1)
+        return label, button
+
+    def _on_language(self, _event=None) -> None:
+        lang = NAME_TO_LANG.get(self.lang_var.get())
+        if not lang or lang == self._lang:
+            return
+        self._lang = lang
+        self._apply_language()
+        self._persist()
+
+    def _apply_language(self) -> None:
+        self.title(f"{self.tr('app_title')} {APP_VERSION}")
+        self.paths_frame.configure(text=self.tr("paths"))
+        self.lbl_psdz.configure(text=self.tr("path_psdz"))
+        self.lbl_svt.configure(text=self.tr("path_svt"))
+        self.lbl_out.configure(text=self.tr("path_out"))
+        self.btn_browse_psdz.configure(text=self.tr("browse"))
+        self.btn_browse_svt.configure(text=self.tr("browse"))
+        self.btn_browse_out.configure(text=self.tr("browse"))
+        self.lbl_lang.configure(text=self.tr("language"))
+        self.types_frame.configure(text=self.tr("export_types"))
+        self.layout_frame.configure(text=self.tr("export_layout"))
+        for value, button in self.layout_buttons.items():
+            button.configure(text=self.tr(LAYOUT_KEYS[value]))
+        self.search_btn.configure(text=self.tr("search"))
+        self.export_btn.configure(text=self.tr("export_selected"))
+        self.open_btn.configure(text=self.tr("open_export"))
+        self.lbl_blocks.configure(text=self.tr("blocks"))
+        self.btn_all.configure(text=self.tr("select_all"))
+        self.btn_none.configure(text=self.tr("select_none"))
+        self.btn_found.configure(text=self.tr("select_found"))
+        self.tree.heading("#0", text=self.tr("col_ecu"))
+        self.tree.heading("cls", text=self.tr("col_class"))
+        self.tree.heading("ver", text=self.tr("col_ver"))
+        self.tree.heading("status", text=self.tr("col_status"))
+        self.tree.heading("files", text=self.tr("col_files"))
+        if self.matches:
+            checked = dict(self.checked)
+            self._fill_tree(self.matches)
+            for iid in self.checked:
+                if iid in checked:
+                    self.checked[iid] = checked[iid]
+            self._refresh_all_marks()
+            self._refresh_summary()
+        elif not self._busy:
+            self.status_var.set(self.tr("status_ready"))
 
     def _set_class_checks(self, classes: list[str]) -> None:
         previous = {name: var.get() for name, var in self.class_vars.items()}
@@ -197,28 +269,28 @@ class App(tk.Tk):
             ).pack(side="left", padx=(0, 8))
 
     def _browse_psdz(self) -> None:
-        path = filedialog.askdirectory(title="Папка PSdZData", initialdir=self.psdz_var.get() or os.getcwd())
+        path = filedialog.askdirectory(title=self.tr("browse_psdz"), initialdir=self.psdz_var.get() or os.getcwd())
         if path:
             self.psdz_var.set(path)
 
     def _browse_svt(self) -> None:
         path = filedialog.askopenfilename(
-            title="SVT XML",
+            title=self.tr("browse_svt"),
             initialdir=str(Path(self.svt_var.get()).parent) if self.svt_var.get() else os.getcwd(),
-            filetypes=[("SVT XML", "*.xml"), ("Все файлы", "*.*")],
+            filetypes=[(self.tr("filetypes_svt"), "*.xml"), (self.tr("filetypes_all"), "*.*")],
         )
         if path:
             self.svt_var.set(path)
 
     def _browse_out(self) -> None:
-        path = filedialog.askdirectory(title="Папка экспорта", initialdir=self.out_var.get() or os.getcwd())
+        path = filedialog.askdirectory(title=self.tr("browse_out"), initialdir=self.out_var.get() or os.getcwd())
         if path:
             self.out_var.set(path)
 
     def _open_out(self) -> None:
         path = Path(self.out_var.get().strip())
         if not path.exists():
-            messagebox.showinfo(APP_TITLE, "Папка экспорта ещё не создана.")
+            messagebox.showinfo(self.tr("app_title"), self.tr("err_out_missing"))
             return
         webbrowser.open(path.as_uri())
 
@@ -241,16 +313,16 @@ class App(tk.Tk):
         psdz = self.psdz_var.get().strip()
         svt = self.svt_var.get().strip()
         if not psdz or not Path(psdz).exists():
-            messagebox.showerror(APP_TITLE, "Укажите существующую папку PSdZData.")
+            messagebox.showerror(self.tr("app_title"), self.tr("err_psdz"))
             return
         if not svt or not Path(svt).is_file():
-            messagebox.showerror(APP_TITLE, "Укажите файл SVT XML.")
+            messagebox.showerror(self.tr("app_title"), self.tr("err_svt"))
             return
         self._persist()
         self._set_busy(True)
         self.progress.configure(mode="indeterminate")
         self.progress.start(12)
-        self.status_var.set("Чтение SVT и индекс PSdZData…")
+        self.status_var.set(self.tr("status_reading"))
         threading.Thread(target=self._search_worker, args=(psdz, svt), daemon=True).start()
 
     def _search_worker(self, psdz: str, svt: str) -> None:
@@ -258,17 +330,17 @@ class App(tk.Tk):
             self.after(0, lambda: self.log_line(f"SVT: {svt}"))
             doc = parse_svt(svt)
             classes = sorted({part.process_class for _, part in doc.parts})
-            self.after(0, lambda: self.log_line(f"ECU: {len(doc.ecus)}, деталей: {len(doc.parts)}"))
+            self.after(0, lambda: self.log_line(self.tr("log_ecus", ecus=len(doc.ecus), parts=len(doc.parts))))
             swe = resolve_swe_root(psdz)
             self.after(0, lambda: self.log_line(f"SWE: {swe}"))
             index = build_index(
                 swe,
                 progress=lambda n, kind: self.after(
-                    0, lambda n=n, kind=kind: self.status_var.set(f"Индекс {kind}: {n} файлов…")
+                    0, lambda n=n, kind=kind: self.status_var.set(self.tr("status_index", kind=kind, count=n))
                 ),
             )
-            counts = ", ".join(f"{k}={v}" for k, v in sorted(index.kind_counts.items())) or "пусто"
-            self.after(0, lambda: self.log_line(f"В индексе {index.file_count} файлов ({counts})"))
+            counts = ", ".join(f"{k}={v}" for k, v in sorted(index.kind_counts.items())) or self.tr("log_empty")
+            self.after(0, lambda: self.log_line(self.tr("log_index", count=index.file_count, counts=counts)))
             self.after(0, lambda: self._apply_search(doc, index, classes))
         except Exception as exc:
             self.after(0, lambda: self._search_failed(exc))
@@ -280,29 +352,46 @@ class App(tk.Tk):
         self.index = index
         self.matches = matches
         self._fill_tree(matches)
-        stats = summarize(matches)
-        self.summary_var.set(
-            f"Найдено {stats['found']} / {stats['parts']}  •  файлов {stats['unique_files']}  •  нет {stats['missing']}"
-            + (f"  •  другие версии {stats['other']}" if stats["other"] else "")
-        )
+        self._refresh_summary()
         self.log_line(self.summary_var.get())
-        if stats["found"] == 0:
-            self.log_line("Ничего не найдено. Lite-сборки часто содержат только CAFD, без BTLD/SWFL/SWFK.")
+        if summarize(matches)["found"] == 0:
+            self.log_line(self.tr("log_lite"))
         self.progress.stop()
         self.progress.configure(mode="determinate", value=0)
         self._refresh_selection_status()
-        self.status_var.set("Поиск завершён. " + self.status_var.get())
+        self.status_var.set(self.tr("status_search_done", detail=self.status_var.get()))
         self._set_busy(False)
         if self._on_search_done:
             self._on_search_done()
 
+    def _refresh_summary(self) -> None:
+        stats = summarize(self.matches)
+        extra = self.tr("summary_other", other=stats["other"]) if stats["other"] else ""
+        self.summary_var.set(
+            self.tr(
+                "summary",
+                found=stats["found"],
+                parts=stats["parts"],
+                files=stats["unique_files"],
+                missing=stats["missing"],
+            )
+            + extra
+        )
+
     def _search_failed(self, exc: Exception) -> None:
         self.progress.stop()
         self.progress.configure(mode="determinate", value=0)
-        self.status_var.set("Ошибка поиска.")
+        self.status_var.set(self.tr("status_search_error"))
         self.log_line(traceback.format_exc())
         self._set_busy(False)
-        messagebox.showerror(APP_TITLE, str(exc))
+        messagebox.showerror(self.tr("app_title"), self._format_error(exc))
+
+    def _format_error(self, exc: Exception) -> str:
+        if isinstance(exc, ValueError) and str(exc) == "no_ecu":
+            return self.tr("err_no_ecu")
+        if isinstance(exc, FileNotFoundError):
+            return self.tr("err_no_swe", path=exc)
+        return str(exc)
 
     def _fill_tree(self, matches) -> None:
         self.tree.delete(*self.tree.get_children())
@@ -319,21 +408,21 @@ class App(tk.Tk):
                 "end",
                 iid=f"ecu_{ecu_index}",
                 text=f"{ecu.title}   ({found}/{len(items)})",
-                values=(MARK_ON, "", "", "", f"{found} найдено", ""),
+                values=(MARK_ON, "", "", "", self.tr("status_found_ecu", found=found), ""),
                 tags=("ecu",),
                 open=found > 0,
             )
             for part_index, match in enumerate(items):
                 if match.found:
-                    status = f"найден ({len(match.files)})"
+                    status = self.tr("status_found", count=len(match.files))
                     files = ", ".join(path.name for path in match.files)
                     tag = "found"
                 elif match.other_versions:
-                    status = "есть другие версии"
+                    status = self.tr("status_other")
                     files = ", ".join(match.other_versions[:8])
                     tag = "other"
                 else:
-                    status = "нет в PSdZData"
+                    status = self.tr("status_missing")
                     files = ""
                     tag = "missing"
                 iid = f"part_{ecu_index}_{part_index}"
@@ -448,7 +537,14 @@ class App(tk.Tk):
         checked_parts = sum(1 for iid in self.row_matches if self.checked.get(iid))
         ready = len(self._selected_matches())
         self.status_var.set(
-            f"Выбрано блоков: {checked_blocks}/{blocks}  •  деталей: {checked_parts}/{len(self.row_matches)}  •  к экспорту: {ready}"
+            self.tr(
+                "status_selection",
+                blocks=checked_blocks,
+                total_blocks=blocks,
+                parts=checked_parts,
+                total_parts=len(self.row_matches),
+                ready=ready,
+            )
         )
         if not self._busy:
             self.export_btn.configure(state="normal" if ready else "disabled")
@@ -457,23 +553,23 @@ class App(tk.Tk):
         if self._busy or not self.matches:
             return
         if not self._selected_classes():
-            messagebox.showinfo(APP_TITLE, "Отметьте хотя бы один тип для экспорта.")
+            messagebox.showinfo(self.tr("app_title"), self.tr("err_no_type"))
             return
         if not any(self.checked.values()):
-            messagebox.showinfo(APP_TITLE, "Отметьте блоки галочками: Все, Ничего или конкретные ECU.")
+            messagebox.showinfo(self.tr("app_title"), self.tr("err_no_blocks"))
             return
         found = self._selected_matches()
         if not found:
-            messagebox.showinfo(APP_TITLE, "Среди отмеченных блоков нет найденных файлов.")
+            messagebox.showinfo(self.tr("app_title"), self.tr("err_no_found"))
             return
         out = self.out_var.get().strip()
         if not out:
-            messagebox.showerror(APP_TITLE, "Укажите папку экспорта.")
+            messagebox.showerror(self.tr("app_title"), self.tr("err_out_empty"))
             return
         self._persist()
         self._set_busy(True)
         self.progress.configure(mode="determinate", value=0, maximum=100)
-        self.status_var.set("Копирование…")
+        self.status_var.set(self.tr("status_copying"))
         layout = self.layout_var.get()
         threading.Thread(target=self._export_worker, args=(found, out, layout), daemon=True).start()
 
@@ -490,22 +586,22 @@ class App(tk.Tk):
 
     def _export_progress(self, pct: int, done: int, total: int, name: str) -> None:
         self.progress.configure(value=pct)
-        self.status_var.set(f"Копирование {done}/{total}: {name}")
+        self.status_var.set(self.tr("status_copy_file", done=done, total=total, name=name))
 
     def _export_done(self, copied: int, skipped: int, errors: list[str], out: str) -> None:
         self.progress.configure(value=100)
-        msg = f"Готово. Скопировано: {copied}, пропущено (уже есть): {skipped}, ошибок: {len(errors)}"
+        msg = self.tr("export_done", copied=copied, skipped=skipped, errors=len(errors))
         self.status_var.set(msg)
         self.log_line(msg)
-        self.log_line(f"Папка: {out}")
+        self.log_line(self.tr("log_folder", path=out))
         if errors:
             for line in errors[:20]:
-                self.log_line("ERR " + line)
+                self.log_line(self.tr("log_err", detail=line))
         self._set_busy(False)
         if errors:
-            messagebox.showwarning(APP_TITLE, msg)
+            messagebox.showwarning(self.tr("app_title"), msg)
         else:
-            messagebox.showinfo(APP_TITLE, msg + f"\n\n{out}")
+            messagebox.showinfo(self.tr("app_title"), msg + f"\n\n{out}")
 
     def _persist(self) -> None:
         if not self.remember_paths:
@@ -516,6 +612,7 @@ class App(tk.Tk):
                 "svt": self.svt_var.get().strip(),
                 "out": self.out_var.get().strip(),
                 "layout": self.layout_var.get(),
+                "language": self._lang,
             }
         )
 
@@ -539,17 +636,22 @@ def run_cli(svt: str, psdz: str, out: str, layout: str) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=APP_TITLE)
+    parser = argparse.ArgumentParser(description=f"{APP_TITLE} {APP_VERSION}")
     parser.add_argument("--svt", help="SVT XML")
-    parser.add_argument("--psdz", help="Папка PSdZData")
-    parser.add_argument("--out", help="Папка экспорта")
-    parser.add_argument("--layout", choices=[item[0] for item in LAYOUTS], default="psdzdata")
-    parser.add_argument("--demo", action="store_true", help="Открыть GUI на demo/sample-svt.xml")
+    parser.add_argument("--psdz", help="PSdZData folder")
+    parser.add_argument("--out", help="Export folder")
+    parser.add_argument("--layout", choices=list(LAYOUTS), default="psdzdata")
+    parser.add_argument("--lang", choices=list(LANGS), help="UI language (default: system)")
+    parser.add_argument("--demo", action="store_true", help="Open GUI with demo/sample-svt.xml")
     args = parser.parse_args()
     if args.svt and args.psdz and args.out:
         run_cli(args.svt, args.psdz, args.out, args.layout)
         return
     app = App()
+    if args.lang:
+        app._lang = args.lang
+        app.lang_var.set(LANG_NAMES[args.lang])
+        app._apply_language()
     if args.demo:
         app.load_demo_paths()
         app.after(200, app.start_search)

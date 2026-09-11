@@ -23,6 +23,8 @@ Write-Host "Building exe..."
     --windowed `
     --name "SVT-PSdZ-Export" `
     --hidden-import engine `
+    --hidden-import i18n `
+    --hidden-import version `
     app.py
 
 if ($LASTEXITCODE -eq 0) {
