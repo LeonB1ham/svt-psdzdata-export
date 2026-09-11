@@ -67,6 +67,8 @@ class App(tk.Tk):
         self.class_vars: dict[str, tk.BooleanVar] = {}
         self.row_matches: dict[str, object] = {}
         self.checked: dict[str, bool] = {}
+        self.remember_paths = True
+        self._on_search_done = None
         cfg = load_config()
 
         self.psdz_var = tk.StringVar(value=cfg.get("psdz", str(DEFAULT_PSDZ if DEFAULT_PSDZ.exists() else "")))
@@ -163,6 +165,14 @@ class App(tk.Tk):
         ttk.Label(bottom, textvariable=self.status_var).pack(anchor="w", pady=(4, 0))
 
         self._set_class_checks(["BTLD", "SWFL", "SWFK", "CAFD", "HWEL", "HWAP"])
+
+    def load_demo_paths(self) -> Path:
+        demo = Path(__file__).resolve().parent / "demo"
+        self.remember_paths = False
+        self.psdz_var.set(str(demo))
+        self.svt_var.set(str(demo / "sample-svt.xml"))
+        self.out_var.set(str(demo / "out"))
+        return demo
 
     def _path_row(self, parent, row: int, label: str, variable: tk.StringVar, command) -> None:
         ttk.Label(parent, text=label, width=10).grid(row=row, column=0, sticky="w", pady=2)
@@ -283,6 +293,8 @@ class App(tk.Tk):
         self._refresh_selection_status()
         self.status_var.set("Поиск завершён. " + self.status_var.get())
         self._set_busy(False)
+        if self._on_search_done:
+            self._on_search_done()
 
     def _search_failed(self, exc: Exception) -> None:
         self.progress.stop()
@@ -496,6 +508,8 @@ class App(tk.Tk):
             messagebox.showinfo(APP_TITLE, msg + f"\n\n{out}")
 
     def _persist(self) -> None:
+        if not self.remember_paths:
+            return
         save_config(
             {
                 "psdz": self.psdz_var.get().strip(),
@@ -530,11 +544,16 @@ def main() -> None:
     parser.add_argument("--psdz", help="Папка PSdZData")
     parser.add_argument("--out", help="Папка экспорта")
     parser.add_argument("--layout", choices=[item[0] for item in LAYOUTS], default="psdzdata")
+    parser.add_argument("--demo", action="store_true", help="Открыть GUI на demo/sample-svt.xml")
     args = parser.parse_args()
     if args.svt and args.psdz and args.out:
         run_cli(args.svt, args.psdz, args.out, args.layout)
         return
-    App().mainloop()
+    app = App()
+    if args.demo:
+        app.load_demo_paths()
+        app.after(200, app.start_search)
+    app.mainloop()
 
 
 if __name__ == "__main__":

@@ -4,6 +4,20 @@
 
 Подходит, чтобы вытащить мини-набор `psdzdata/swe` под конкретную машину (CAFD/BTLD/SWFL/SWFK), не таская весь датасет.
 
+## Скриншоты
+
+Стартовый экран с путями:
+
+![Старт](demo/screenshots/01-start.png)
+
+Результат поиска по демо-SVT: найденные детали зелёные, отсутствующие красные.
+
+![Поиск](demo/screenshots/02-results.png)
+
+Выбор конкретных блоков галочками (SRR снят, HKFM2 остаётся):
+
+![Выбор блоков](demo/screenshots/03-selection.png)
+
 ## Что делает
 
 ```mermaid
@@ -62,10 +76,8 @@ py -3 app.py --svt demo\sample-svt.xml --psdz demo --out demo\out --layout psdzd
 GUI на демо-данных:
 
 ```bat
-py -3 app.py
+py -3 app.py --demo
 ```
-
-Затем укажите `demo` как PSdZData и `demo\sample-svt.xml` как SVT.
 
 Что должно получиться на демо:
 

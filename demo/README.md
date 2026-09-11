@@ -8,7 +8,10 @@
 
 Результат появится в `demo/out/`. Эталонный манифест: `export-example/svt_export_manifest.txt`.
 
-Для GUI укажите:
+Для GUI:
 
-- PSdZData: папка `demo`
-- SVT: `demo/sample-svt.xml`
+```bat
+py -3 app.py --demo
+```
+
+Скриншоты окна: `screenshots/01-start.png`, `02-results.png`, `03-selection.png`.
