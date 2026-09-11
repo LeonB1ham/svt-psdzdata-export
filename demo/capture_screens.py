@@ -14,6 +14,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from app import App  # noqa: E402
+from i18n import LANG_NAMES  # noqa: E402
 
 SHOTS = Path(__file__).resolve().parent / "screenshots"
 user32 = ctypes.windll.user32
@@ -52,6 +53,10 @@ def main() -> None:
     SHOTS.mkdir(parents=True, exist_ok=True)
 
     app = App()
+    app.remember_paths = False
+    app._lang = "en"
+    app.lang_var.set(LANG_NAMES["en"])
+    app._apply_language()
     app.load_demo_paths()
     app.update_idletasks()
     width, height = 1180, 760
