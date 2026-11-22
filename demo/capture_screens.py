@@ -1,4 +1,7 @@
-"""Capture live GUI screenshots into demo/screenshots."""
+"""Capture live GUI screenshots (English UI) into demo/screenshots. Windows only.
+
+py -3 demo/capture_screens.py
+"""
 
 from __future__ import annotations
 
@@ -13,12 +16,13 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app import App  # noqa: E402
-from i18n import LANG_NAMES  # noqa: E402
+import app as gui  # noqa: E402
+from engine import nearest_version  # noqa: E402
 
 SHOTS = Path(__file__).resolve().parent / "screenshots"
 user32 = ctypes.windll.user32
 GA_ROOT = 2
+WIDTH, HEIGHT = 1240, 820
 
 
 def _enable_dpi() -> None:
@@ -28,65 +32,133 @@ def _enable_dpi() -> None:
         user32.SetProcessDPIAware()
 
 
-def _window_bbox(app: App) -> tuple[int, int, int, int]:
-    app.update_idletasks()
-    app.update()
-    hwnd = user32.GetAncestor(app.winfo_id(), GA_ROOT)
+def _bbox(widget) -> tuple[int, int, int, int]:
+    widget.update_idletasks()
+    widget.update()
+    hwnd = user32.GetAncestor(widget.winfo_id(), GA_ROOT)
     rect = wintypes.RECT()
     user32.GetWindowRect(hwnd, ctypes.byref(rect))
     return rect.left, rect.top, rect.right, rect.bottom
 
 
-def grab(app: App, name: str) -> Path:
-    app.lift()
-    app.attributes("-topmost", True)
-    app.update()
-    path = SHOTS / name
-    image = ImageGrab.grab(bbox=_window_bbox(app), all_screens=True)
-    image.save(path)
-    print(f"saved {path} ({image.size[0]}x{image.size[1]})")
-    return path
+def grab(widget, name: str) -> None:
+    widget.lift()
+    widget.attributes("-topmost", True)
+    widget.update()
+    image = ImageGrab.grab(bbox=_bbox(widget), all_screens=True)
+    image.save(SHOTS / name)
+    print(f"saved {name} ({image.size[0]}x{image.size[1]})")
+    widget.attributes("-topmost", False)
+
+
+class Script:
+    def __init__(self) -> None:
+        self.app = gui.App(lang="en", use_config=False)
+        app = self.app
+        x = max((app.winfo_screenwidth() - WIDTH) // 2, 0)
+        y = max((app.winfo_screenheight() - HEIGHT) // 2 - 20, 0)
+        app.geometry(f"{WIDTH}x{HEIGHT}+{x}+{y}")
+        app._on_search_done = lambda: app.after(500, self.next)
+        self.steps = [
+            self.single,
+            self.single_shot,
+            self.diff,
+            self.diff_shot,
+            self.missing_shot,
+            self.tal,
+            self.tal_shot,
+            self.batch,
+            self.batch_shot,
+        ]
+
+    def run(self) -> None:
+        self.app.after(600, self.next)
+        self.app.mainloop()
+
+    def next(self) -> None:
+        if self.steps:
+            step = self.steps.pop(0)
+            step()
+        else:
+            self.app.destroy()
+
+    def _then(self, delay: int = 400) -> None:
+        self.app.after(delay, self.next)
+
+    # Single SVT: found / other version / incomplete pair / missing
+    def single(self) -> None:
+        self.app.load_demo_paths("single")
+        self.app.start_search()
+
+    def single_shot(self) -> None:
+        grab(self.app, "01-single.png")
+        self._then()
+
+    # Ist -> Soll: only what changes, one part replaced by the nearest version
+    def diff(self) -> None:
+        self.app.mode_var.set("diff")
+        self.app._on_mode()
+        self.app.start_search()
+
+    def diff_shot(self) -> None:
+        app = self.app
+        for iid, match in app.part_by_iid.items():
+            if match.part.process_class and not match.found and match.other_versions:
+                app._set_override(iid, nearest_version(match))
+        app.hide_same_var.set(False)
+        app._render_tree()
+        app.update()
+        grab(app, "02-ist-soll.png")
+        self._then()
+
+    def missing_shot(self) -> None:
+        app = self.app
+        for iid, match in app.part_by_iid.items():
+            if match.override_version:
+                app._set_override(iid, "")
+        dialog = app.show_missing_dialog()
+        dialog.car_var.set("F30 demo")
+        dialog.istep_var.set("F020-24-07-550")
+        x = app.winfo_rootx() + 260
+        y = app.winfo_rooty() + 120
+        dialog.geometry(f"720x560+{x}+{y}")
+        dialog.update()
+
+        def shot() -> None:
+            grab(dialog, "03-missing-list.png")
+            dialog.destroy()
+            self._then()
+
+        app.after(500, shot)
+
+    def tal(self) -> None:
+        self.app.mode_var.set("tal")
+        self.app._on_mode()
+        self.app.start_search()
+
+    def tal_shot(self) -> None:
+        grab(self.app, "04-tal.png")
+        self._then()
+
+    def batch(self) -> None:
+        app = self.app
+        app.mode_var.set("batch")
+        app._on_mode()
+        demo = ROOT / "demo"
+        app.batch_files = [str(demo / "sample-svt.xml"), str(demo / "sample-svt-ist.xml"), str(demo / "sample-tal.xml")]
+        app.zip_var.set(True)
+        app._render_batch()
+        app.start_search()
+
+    def batch_shot(self) -> None:
+        grab(self.app, "05-batch.png")
+        self._then()
 
 
 def main() -> None:
     _enable_dpi()
     SHOTS.mkdir(parents=True, exist_ok=True)
-
-    app = App()
-    app.remember_paths = False
-    app._lang = "en"
-    app.lang_var.set(LANG_NAMES["en"])
-    app._apply_language()
-    app.load_demo_paths()
-    app.update_idletasks()
-    width, height = 1180, 760
-    x = max((app.winfo_screenwidth() - width) // 2, 40)
-    y = max((app.winfo_screenheight() - height) // 2, 40)
-    app.geometry(f"{width}x{height}+{x}+{y}")
-
-    def after_search() -> None:
-        for iid in app.tree.get_children(""):
-            app.tree.item(iid, open=True)
-        app.update()
-        app.after(400, take_results)
-
-    def take_results() -> None:
-        grab(app, "02-results.png")
-        # Leave only HKFM2 checked to show mixed selection.
-        for iid, match in app.row_matches.items():
-            app.checked[iid] = match.ecu.base_variant == "HKFM2"
-        app._refresh_all_marks()
-        app.update()
-        app.after(300, take_selection)
-
-    def take_selection() -> None:
-        grab(app, "03-selection.png")
-        app.attributes("-topmost", False)
-        app.destroy()
-
-    app._on_search_done = after_search
-    app.after(500, lambda: (grab(app, "01-start.png"), app.start_search()))
-    app.mainloop()
+    Script().run()
 
 
 if __name__ == "__main__":

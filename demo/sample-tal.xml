@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- Demo TAL: the actions E-Sys would run to bring sample-svt-ist.xml to sample-svt.xml. -->
+<tal xmlns="http://bmw.com/2005/psdz.data.tal" talExecutionState="Executable">
+    <talLine id="1" baseVariant="HKFM2">
+        <diagnosticAddress physicalOffset="13"/>
+        <idBackup>
+            <idBackupTA/>
+        </idBackup>
+        <blFlash>
+            <blFlashTA>
+                <partIdentification>
+                    <processClass>BTLD</processClass>
+                    <id>00004692</id>
+                    <mainVersion>011</mainVersion>
+                    <subVersion>000</subVersion>
+                    <patchVersion>000</patchVersion>
+                </partIdentification>
+            </blFlashTA>
+        </blFlash>
+        <swDeploy>
+            <swDeployTA>
+                <partIdentification>
+                    <processClass>SWFL</processClass>
+                    <id>00004693</id>
+                    <mainVersion>005</mainVersion>
+                    <subVersion>000</subVersion>
+                    <patchVersion>000</patchVersion>
+                </partIdentification>
+            </swDeployTA>
+        </swDeploy>
+        <cdDeploy>
+            <cdDeployTA>
+                <partIdentification>
+                    <processClass>CAFD</processClass>
+                    <id>0000570F</id>
+                    <mainVersion>008</mainVersion>
+                    <subVersion>000</subVersion>
+                    <patchVersion>020</patchVersion>
+                </partIdentification>
+            </cdDeployTA>
+        </cdDeploy>
+    </talLine>
+    <talLine id="2" baseVariant="SRR">
+        <diagnosticAddress physicalOffset="8"/>
+        <swDeploy>
+            <swDeployTA>
+                <partIdentification>
+                    <processClass>SWFL</processClass>
+                    <id>00005ED0</id>
+                    <mainVersion>002</mainVersion>
+                    <subVersion>037</subVersion>
+                    <patchVersion>001</patchVersion>
+                </partIdentification>
+            </swDeployTA>
+        </swDeploy>
+        <cdDeploy>
+            <cdDeployTA>
+                <partIdentification>
+                    <processClass>CAFD</processClass>
+                    <id>00004146</id>
+                    <mainVersion>003</mainVersion>
+                    <subVersion>037</subVersion>
+                    <patchVersion>007</patchVersion>
+                </partIdentification>
+            </cdDeployTA>
+        </cdDeploy>
+    </talLine>
+</tal>
