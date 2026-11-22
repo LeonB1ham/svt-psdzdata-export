@@ -20,6 +20,10 @@ Download the ready `SVT-PSdZData-Export.exe` from [Releases](https://github.com/
 - **Upload to MEGA**: the ZIP goes to your MEGA account and you get a public link (copied to the clipboard), ready to share on a forum
 - **Filter** box, **drag & drop** of SVT/TAL files and PSdZData folders onto the window (or onto the exe), CSV report of the whole table
 
+![What's new in 1.2.0](demo/screenshots/whats-new-1.png)
+
+![New windows and modes](demo/screenshots/whats-new-2.png)
+
 ## Screenshots
 
 Single SVT: found parts in green, other version in orange, missing in red, a BTLD with only its `.bin` gets a warning.
