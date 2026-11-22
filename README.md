@@ -17,6 +17,7 @@ Download the ready `SVT-PSdZData-Export.exe` from [Releases](https://github.com/
 - **bin/xml check**: warns when a BTLD/SWFL/SWFK has only the `.bin` or only the `.xml`
 - **Batch mode**: several SVT/TAL files in one run, one subfolder per car (or one shared set) plus `batch_report.csv`
 - **Export options**: also pack into ZIP, hard links instead of copies (same drive), compare existing files by SHA-1
+- **Upload to MEGA**: the ZIP goes to your MEGA account and you get a public link (copied to the clipboard), ready to share on a forum
 - **Filter** box, **drag & drop** of SVT/TAL files and PSdZData folders onto the window (or onto the exe), CSV report of the whole table
 
 ## Screenshots
@@ -141,8 +142,19 @@ py -3 app.py --svt "C:\path\svt.xml" --psdz "C:\PSdZData 4.60.11 Lite" --out "D:
 | `--hardlink` | hard links instead of copies (same drive; falls back to copy) |
 | `--hash` | compare existing files by SHA-1, not only by size |
 | `--missing-report FILE` | write the missing-files list (`.txt` forum text or `.csv`) |
+| `--mega [REMOTE_DIR]` | upload the ZIP to MEGA via MEGAcmd and print the public link |
 
 You can also drop SVT/TAL files onto `SVT-PSdZData-Export.exe` to open them.
+
+## MEGA upload
+
+Uses the official free **MEGAcmd** from MEGA, so no password is stored in this tool:
+
+1. Install MEGAcmd from [mega.io/cmd](https://mega.io/cmd)
+2. Open MEGAcmd once and log in: `login your@email password`
+3. Tick **Upload ZIP to MEGA (MEGAcmd)** (or use `--mega` in the CLI)
+
+After the export the ZIP is uploaded to `/SVT-Export` in your MEGA account (CLI: `--mega "/my/folder"`), a public link is created and copied to the clipboard. In batch mode every car gets its own link, also written to `batch_report.csv`.
 
 ## Notes
 

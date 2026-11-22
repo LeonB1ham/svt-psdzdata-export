@@ -32,6 +32,7 @@ from engine import (
     summarize,
     zip_folder,
 )
+import mega
 from i18n import LANG_NAMES, LANGS, NAME_TO_LANG, normalize_language, system_language, translate
 from version import APP_VERSION
 
@@ -143,6 +144,10 @@ class App(_BaseTk):
         self.hardlink_var = tk.BooleanVar(value=opts.get("hardlink", False))
         self.hash_var = tk.BooleanVar(value=opts.get("hash", False))
         self.batch_shared_var = tk.BooleanVar(value=opts.get("batch_shared", False))
+        self.mega_var = tk.BooleanVar(value=opts.get("mega", False))
+        self.mega_dir = cfg.get("mega_dir", mega.DEFAULT_REMOTE_DIR)
+        self.mega_links: list[str] = []
+        self.mega_errors: list[str] = []
         self.batch_files = [item for item in cfg.get("batch", []) if isinstance(item, str)]
 
         self._build()
@@ -213,6 +218,7 @@ class App(_BaseTk):
         self.chk_zip = ttk.Checkbutton(self.options_frame, variable=self.zip_var)
         self.chk_hardlink = ttk.Checkbutton(self.options_frame, variable=self.hardlink_var)
         self.chk_hash = ttk.Checkbutton(self.options_frame, variable=self.hash_var)
+        self.chk_mega = ttk.Checkbutton(self.options_frame, variable=self.mega_var, command=self._on_mega)
         for widget in (
             self.chk_only_changed,
             self.chk_nearest,
@@ -220,6 +226,7 @@ class App(_BaseTk):
             self.chk_zip,
             self.chk_hardlink,
             self.chk_hash,
+            self.chk_mega,
         ):
             widget.pack(anchor="w")
 
@@ -419,6 +426,7 @@ class App(_BaseTk):
         self.chk_zip.configure(text=self.tr("opt_zip"))
         self.chk_hardlink.configure(text=self.tr("opt_hardlink"))
         self.chk_hash.configure(text=self.tr("opt_hash"))
+        self.chk_mega.configure(text=self.tr("opt_mega"))
         self.layout_frame.configure(text=self.tr("export_layout"))
         for value, button in self.layout_buttons.items():
             button.configure(text=self.tr(LAYOUT_KEYS[value]))
@@ -1088,6 +1096,37 @@ class App(_BaseTk):
             self.export_btn.configure(state="normal" if selected else "disabled")
 
     # ---------------------------------------------------------------- export
+    def _on_mega(self) -> None:
+        if not self.mega_var.get():
+            return
+        if not mega.is_installed():
+            self.mega_var.set(False)
+            if messagebox.askyesno(self.tr("app_title"), self.tr("mega_not_installed")):
+                webbrowser.open(mega.MEGACMD_URL)
+            return
+        self.zip_var.set(True)
+
+    def _mega_upload(self, path: Path) -> str:
+        """Runs in the worker thread. Returns the link or '' and logs the reason."""
+        try:
+            link = mega.upload(
+                path,
+                self.mega_dir,
+                progress=lambda step, name: self.after(
+                    0, lambda: self.status_var.set(self.tr(f"mega_{step}", name=name))
+                ),
+            )
+            self.after(0, lambda: self.log_line(self.tr("mega_done", name=path.name, link=link)))
+            return link
+        except mega.MegaError as exc:
+            key = {"not_installed": "mega_not_installed", "not_logged_in": "mega_not_logged_in"}.get(
+                exc.code, "mega_failed"
+            )
+            message = self.tr(key, detail=exc.detail)
+            self.after(0, lambda: self.log_line(message))
+            self.mega_errors.append(message)
+            return ""
+
     def _export_kwargs(self) -> dict:
         return {
             "use_hash": self.hash_var.get(),
@@ -1159,16 +1198,23 @@ class App(_BaseTk):
 
     def _export_worker(self, matches, all_matches, out: str, layout: str, meta: dict) -> None:
         try:
+            self.mega_links = []
+            self.mega_errors = []
+            use_mega = self.mega_var.get()
             copied, skipped, errors = export_matches(
                 matches,
                 out,
                 layout,
                 progress=self._progress_cb(),
-                make_zip=self.zip_var.get(),
+                make_zip=self.zip_var.get() or use_mega,
                 all_matches=all_matches,
                 meta=meta,
                 **self._export_kwargs(),
             )
+            if use_mega:
+                link = self._mega_upload(Path(out).with_name(Path(out).name + ".zip"))
+                if link:
+                    self.mega_links.append(link)
             self.after(0, lambda: self._export_done(copied, skipped, errors, out))
         except Exception as exc:
             error = traceback.format_exc()
@@ -1181,8 +1227,15 @@ class App(_BaseTk):
     def _export_done(self, copied: int, skipped: int, errors: list[str], out: str) -> None:
         self.progress.configure(value=100)
         msg = self.tr("export_done", copied=copied, skipped=skipped, errors=len(errors))
-        if self.zip_var.get():
+        if self.zip_var.get() and not (self.mode == "batch" and not self.batch_shared_var.get()):
             msg += "\n" + self.tr("export_zip", path=str(Path(out).with_name(Path(out).name + ".zip")))
+        if self.mega_links:
+            msg += "\n\nMEGA:\n" + "\n".join(self.mega_links)
+            self.clipboard_clear()
+            self.clipboard_append("\n".join(self.mega_links))
+            msg += "\n" + self.tr("mega_copied")
+        for line in getattr(self, "mega_errors", []):
+            msg += "\n\n" + line
         self.status_var.set(msg.replace("\n", "  •  "))
         self.log_line(msg)
         self.log_line(self.tr("log_folder", path=out))
@@ -1192,7 +1245,7 @@ class App(_BaseTk):
         if self._on_export_done:
             self._on_export_done()
             return
-        if errors:
+        if errors or getattr(self, "mega_errors", []):
             messagebox.showwarning(self.tr("app_title"), msg)
         else:
             messagebox.showinfo(self.tr("app_title"), msg + f"\n\n{out}")
@@ -1342,6 +1395,9 @@ class App(_BaseTk):
             import csv
             import io
 
+            self.mega_links = []
+            self.mega_errors = []
+            use_mega = self.mega_var.get()
             names = self._batch_folder_names()
             classes = self._selected_classes()
             shared = self.batch_shared_var.get()
@@ -1360,7 +1416,7 @@ class App(_BaseTk):
                     dest,
                     layout,
                     progress=self._progress_cb(f"[{n}/{len(items)}] "),
-                    make_zip=self.zip_var.get() and not shared,
+                    make_zip=(self.zip_var.get() or use_mega) and not shared,
                     all_matches=matches,
                     meta=meta,
                     **self._export_kwargs(),
@@ -1372,11 +1428,21 @@ class App(_BaseTk):
                 stats = summarize(matches)
                 rows.append([item, dest, stats["parts"], stats["found"], stats["other"], stats["missing"], copied, skipped, len(errors)])
                 res["state"] = self.tr("batch_done", copied=copied)
-            if shared and self.zip_var.get():
+                if use_mega and not shared:
+                    link = self._mega_upload(dest.with_name(dest.name + ".zip"))
+                    if link:
+                        self.mega_links.append(f"{names[item]}: {link}")
+                        res["state"] += "  •  MEGA ✓"
+                        rows[-1].append(link)
+            if shared and (self.zip_var.get() or use_mega):
                 zip_folder(out_root)
+                if use_mega:
+                    link = self._mega_upload(out_root.with_name(out_root.name + ".zip"))
+                    if link:
+                        self.mega_links.append(link)
             buffer = io.StringIO()
             writer = csv.writer(buffer, lineterminator="\n")
-            writer.writerow(["svt", "folder", "parts", "found", "other_versions", "missing", "copied", "skipped", "errors"])
+            writer.writerow(["svt", "folder", "parts", "found", "other_versions", "missing", "copied", "skipped", "errors", "mega_link"])
             writer.writerows(rows)
             out_root.mkdir(parents=True, exist_ok=True)
             (out_root / "batch_report.csv").write_text(buffer.getvalue(), encoding="utf-8-sig")
@@ -1409,7 +1475,9 @@ class App(_BaseTk):
                     "hardlink": self.hardlink_var.get(),
                     "hash": self.hash_var.get(),
                     "batch_shared": self.batch_shared_var.get(),
+                    "mega": self.mega_var.get(),
                 },
+                "mega_dir": self.mega_dir,
             }
         )
 
@@ -1516,7 +1584,7 @@ class MissingDialog(tk.Toplevel):
 # -------------------------------------------------------------------- CLI
 def run_cli(args) -> None:
     index = build_index(resolve_swe_root(args.psdz))
-    kwargs = {"use_hash": args.hash, "hardlink": args.hardlink, "make_zip": args.zip}
+    kwargs = {"use_hash": args.hash, "hardlink": args.hardlink, "make_zip": args.zip or bool(args.mega)}
 
     def pick(matches):
         if args.nearest:
@@ -1555,6 +1623,13 @@ def run_cli(args) -> None:
         for err in errors:
             print("ERR", err)
         failed = failed or bool(errors)
+        if args.mega:
+            try:
+                link = mega.upload(dest.with_name(dest.name + ".zip"), args.mega)
+                print(f"  MEGA: {link}")
+            except mega.MegaError as exc:
+                print(f"  MEGA failed ({exc.code}): {exc.detail}")
+                failed = True
         if args.missing_report:
             target = Path(args.missing_report)
             if len(jobs) > 1:
@@ -1583,6 +1658,13 @@ def main() -> None:
     parser.add_argument("--hardlink", action="store_true", help="Hard links instead of copies (same drive)")
     parser.add_argument("--hash", action="store_true", help="Compare existing files by SHA-1, not only size")
     parser.add_argument("--missing-report", help="Write the missing-files list (.txt forum text or .csv)")
+    parser.add_argument(
+        "--mega",
+        nargs="?",
+        const=mega.DEFAULT_REMOTE_DIR,
+        metavar="REMOTE_DIR",
+        help=f"Upload the ZIP to MEGA with MEGAcmd and print the link (default folder {mega.DEFAULT_REMOTE_DIR})",
+    )
     parser.add_argument("--lang", choices=list(LANGS), help="UI language (default: system)")
     parser.add_argument("--demo", action="store_true", help="Open GUI with demo data")
     args = parser.parse_args()

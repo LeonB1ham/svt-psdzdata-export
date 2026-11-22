@@ -25,6 +25,7 @@ Write-Host "Building exe..."
     --hidden-import engine `
     --hidden-import i18n `
     --hidden-import version `
+    --hidden-import mega `
     --collect-all tkinterdnd2 `
     app.py
 
