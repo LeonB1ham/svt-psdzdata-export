@@ -13,7 +13,7 @@ if (-not (Test-Path $Python)) {
 }
 
 Write-Host "Installing PyInstaller..."
-& $Python -m pip install --upgrade pip pyinstaller -q
+& $Python -m pip install --upgrade pip pyinstaller tkinterdnd2 -q
 
 Write-Host "Building exe..."
 & $Python -m PyInstaller `
@@ -25,6 +25,7 @@ Write-Host "Building exe..."
     --hidden-import engine `
     --hidden-import i18n `
     --hidden-import version `
+    --collect-all tkinterdnd2 `
     app.py
 
 if ($LASTEXITCODE -eq 0) {
