@@ -1,8 +1,9 @@
 name: Build Windows exe
 
 on:
+  release:
+    types: [published]
   push:
-    tags: ["v*"]
     branches: ["release/**"]
   workflow_dispatch:
 
@@ -75,7 +76,7 @@ jobs:
           path: dist/SVT-PSdZData-Export.exe
 
       - name: Attach exe to the release
-        if: startsWith(github.ref, 'refs/tags/')
+        if: github.event_name == 'release'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.ref_name }}" dist/SVT-PSdZData-Export.exe --clobber
+        run: gh release upload "${{ github.event.release.tag_name }}" dist/SVT-PSdZData-Export.exe --clobber
