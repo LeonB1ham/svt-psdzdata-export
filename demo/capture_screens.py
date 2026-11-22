@@ -22,7 +22,8 @@ from engine import nearest_version  # noqa: E402
 SHOTS = Path(__file__).resolve().parent / "screenshots"
 user32 = ctypes.windll.user32
 GA_ROOT = 2
-WIDTH, HEIGHT = 1240, 820
+WIDTH, HEIGHT = 1260, 920
+DWMWA_EXTENDED_FRAME_BOUNDS = 9
 
 
 def _enable_dpi() -> None:
@@ -37,7 +38,13 @@ def _bbox(widget) -> tuple[int, int, int, int]:
     widget.update()
     hwnd = user32.GetAncestor(widget.winfo_id(), GA_ROOT)
     rect = wintypes.RECT()
-    user32.GetWindowRect(hwnd, ctypes.byref(rect))
+    try:
+        # Visible frame without the invisible resize border/shadow
+        ctypes.windll.dwmapi.DwmGetWindowAttribute(
+            wintypes.HWND(hwnd), DWMWA_EXTENDED_FRAME_BOUNDS, ctypes.byref(rect), ctypes.sizeof(rect)
+        )
+    except Exception:
+        user32.GetWindowRect(hwnd, ctypes.byref(rect))
     return rect.left, rect.top, rect.right, rect.bottom
 
 
