@@ -90,7 +90,7 @@ py -3 app.py --lang en
 5. Right-click a part with another version available to pick a replacement
 6. **Export selected**; **Missing files list…** gives you the text to ask for the rest
 
-Build a standalone exe: `.\build.ps1` → `dist\SVT-PSdZData-Export.exe`. Tagged releases are built by GitHub Actions (`.github/workflows/build.yml`).
+Build a standalone exe: `.\build.ps1` → `dist\SVT-PSdZData-Export.exe`. When a release is published on GitHub, Actions builds the exe and attaches it (`.github/workflows/build.yml`).
 
 ## Demo
 
